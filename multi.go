@@ -13,7 +13,6 @@ package multiresolver
 
 import (
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 
@@ -78,7 +77,6 @@ func (pccg *partialClientConnGroup) updateState() {
 		s.Addresses = append(s.Addresses, p.state.Addresses...)
 		p.mtx.Unlock()
 	}
-	log.Printf("UpdateState(%#v)\n", s)
 	pccg.cc.UpdateState(s)
 }
 

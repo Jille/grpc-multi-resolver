@@ -66,7 +66,7 @@ type partialClientConnGroup struct {
 	parts []*partialClientConn
 }
 
-func (pccg *partialClientConnGroup) updateState() {
+func (pccg *partialClientConnGroup) updateState() error {
 	s := resolver.State{}
 	pccg.parts[0].mtx.Lock()
 	s.ServiceConfig = pccg.parts[0].state.ServiceConfig
@@ -77,7 +77,8 @@ func (pccg *partialClientConnGroup) updateState() {
 		s.Addresses = append(s.Addresses, p.state.Addresses...)
 		p.mtx.Unlock()
 	}
-	pccg.cc.UpdateState(s)
+
+	return pccg.cc.UpdateState(s)
 }
 
 type partialClientConn struct {
@@ -88,11 +89,12 @@ type partialClientConn struct {
 }
 
 // UpdateState updates the state of the ClientConn appropriately.
-func (cc *partialClientConn) UpdateState(s resolver.State) {
+func (cc *partialClientConn) UpdateState(s resolver.State) error {
 	cc.mtx.Lock()
 	cc.state = s
 	cc.mtx.Unlock()
-	cc.parent.updateState()
+
+	return cc.parent.updateState()
 }
 
 // ReportError notifies the ClientConn that the Resolver encountered an

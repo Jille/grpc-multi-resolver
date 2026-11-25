@@ -16,4 +16,6 @@ grpc.Dial("multi:///127.0.0.1:1234,dns://example.org:1234")
 
 Note the triple slash at the beginning.
 
+Child resolvers can publish independently during startup. An initial update may therefore contain addresses from only some targets.
+
 Note: The ServiceConfig and Attributes from the first target are used, the rest are ignored.

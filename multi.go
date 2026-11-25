@@ -32,11 +32,17 @@ func (builder) Scheme() string {
 }
 
 func (builder) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOptions) (resolver.Resolver, error) {
+	targets := strings.Split(target.Endpoint(), ",")
 	pccg := &partialClientConnGroup{
-		cc: cc,
+		cc:    cc,
+		parts: make([]partialClientConn, len(targets)),
 	}
-	var mr multiResolver
-	for _, t := range strings.Split(target.Endpoint(), ",") {
+	// A child may publish state as soon as its Build starts.
+	for i := range pccg.parts {
+		pccg.parts[i].parent = pccg
+	}
+	mr := multiResolver{children: make([]resolver.Resolver, 0, len(targets))}
+	for i, t := range targets {
 		parsedTarget := ParseTarget(t)
 		resolverBuilder := resolver.Get(parsedTarget.URL.Scheme)
 		if resolverBuilder == nil {
@@ -46,9 +52,7 @@ func (builder) Build(target resolver.Target, cc resolver.ClientConn, opts resolv
 				return nil, fmt.Errorf("could not get resolver for default scheme: %q", parsedTarget.URL.Scheme)
 			}
 		}
-		pcc := &partialClientConn{parent: pccg}
-		pccg.parts = append(pccg.parts, pcc)
-		resolver, err := resolverBuilder.Build(parsedTarget, pcc, opts)
+		resolver, err := resolverBuilder.Build(parsedTarget, &pccg.parts[i], opts)
 		if err != nil {
 			mr.Close()
 			return nil, err
@@ -60,7 +64,7 @@ func (builder) Build(target resolver.Target, cc resolver.ClientConn, opts resolv
 
 type partialClientConnGroup struct {
 	cc    resolver.ClientConn
-	parts []*partialClientConn
+	parts []partialClientConn
 }
 
 func (pccg *partialClientConnGroup) updateState() {
@@ -69,7 +73,8 @@ func (pccg *partialClientConnGroup) updateState() {
 	s.ServiceConfig = pccg.parts[0].state.ServiceConfig
 	s.Attributes = pccg.parts[0].state.Attributes
 	pccg.parts[0].mtx.Unlock()
-	for _, p := range pccg.parts {
+	for i := range pccg.parts {
+		p := &pccg.parts[i]
 		p.mtx.Lock()
 		s.Addresses = append(s.Addresses, p.state.Addresses...)
 		p.mtx.Unlock()
